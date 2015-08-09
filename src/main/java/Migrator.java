@@ -2,6 +2,7 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.internal.util.jdbc.DriverDataSource;
 
 import javax.sql.DataSource;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,12 +18,22 @@ public class Migrator {
     private static String migrationPrefix;
 
     public static void main(String[] args) throws Exception {
-        if (args.length == 0) {
-            printUsage();
+        try {
+            run(args);
+            System.exit(0);
+        } catch (IllegalArgumentException e){
+            System.out.println(e.getMessage());
             System.exit(1);
         }
+    }
+
+    final static void run(String[] args) throws IOException {
+        if (args.length == 0) {
+            printUsage();
+            throw new IllegalArgumentException("");
+        }
         readProperties(args[0]);
-        DataSource dataSource = getDataSource();
+        DataSource dataSource = buildDataSource();
         Flyway flyway = new Flyway();
         flyway.setDataSource(dataSource);
         flyway.setSqlMigrationPrefix(migrationPrefix);
@@ -35,6 +46,8 @@ public class Migrator {
                 flyway.migrate();
             } else if ("repair".equals(command)) {
                 flyway.repair();
+            } else {
+                throw new IllegalArgumentException("Unknown command");
             }
         }
     }
@@ -48,7 +61,7 @@ public class Migrator {
         System.out.println("    repair");
     }
 
-    private static DataSource getDataSource() {
+    private static DataSource buildDataSource() {
         return new DriverDataSource(Migrator.class.getClassLoader(), databaseDriverClass, databaseUrl, databaseUsername, databasePassword);
     }
 
@@ -72,13 +85,11 @@ public class Migrator {
         for (int i = 0; i < directories.length; i++) {
             final Path directoryPath = Paths.get(directories[i]).toAbsolutePath();
             if (!Files.exists(directoryPath)) {
-                System.out.println("Error:\nMigrations directory not found : " + directoryPath.toString());
-                System.exit(1);
+                System.out.println();
+                throw new FileNotFoundException("Error:\nMigrations directory not found : " + directoryPath.toString());
             }
             System.out.println("Using migrations directory : " + directoryPath.toString());
             migrationsDirectories[i] = "filesystem:" + directories[i];
         }
-
     }
-
 }
